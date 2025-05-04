@@ -59,8 +59,8 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 /// up to the compiler to remove any code past that point.
 ///
 #define UNREACHABLE()  __builtin_unreachable ()
-  #elif defined (__has_feature)
-    #if __has_builtin (__builtin_unreachable)
+  #elif defined(__has_builtin)
+    #if __has_builtin(__builtin_unreachable)
 ///
 /// Signal compilers and analyzers that this call is not reachable.  It is
 /// up to the compiler to remove any code past that point.
