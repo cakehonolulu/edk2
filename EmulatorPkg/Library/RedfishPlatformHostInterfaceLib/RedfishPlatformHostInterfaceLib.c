@@ -4,6 +4,7 @@
   Copyright (c) 2019, Intel Corporation. All rights reserved.<BR>
   (C) Copyright 2020 Hewlett Packard Enterprise Development LP<BR>
   Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.<BR>
+  Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
@@ -42,12 +43,10 @@ GetMacAddressInformation (
   OUT EFI_MAC_ADDRESS  *MacAddress
   )
 {
-  MAC_ADDR_DEVICE_PATH              *Mac;
   REST_EX_SERVICE_DEVICE_PATH_DATA  *RestExServiceDevicePathData;
   EFI_DEVICE_PATH_PROTOCOL          *RestExServiceDevicePath;
   MAC_ADDR_DEVICE_PATH              *MacAddressDevicePath;
 
-  Mac                         = NULL;
   RestExServiceDevicePathData = NULL;
   RestExServiceDevicePath     = NULL;
 
@@ -538,7 +537,7 @@ RedfishPlatformHostInterfaceConstructor (
   EFI_STATUS  Status;
 
   Status = GetRedfishRecordFromVariable (&mRedfishOverIpProtocolData, &mRedfishProtocolDataSize);
-  DEBUG ((DEBUG_INFO, "%a: GetRedfishRecordFromVariable() - %r\n", __FUNCTION__, Status));
+  DEBUG ((DEBUG_INFO, "%a: GetRedfishRecordFromVariable() - %r\n", __func__, Status));
   if (!EFI_ERROR (Status)) {
     DumpRedfishIpProtocolData (mRedfishOverIpProtocolData, mRedfishProtocolDataSize);
   }
@@ -564,6 +563,23 @@ RedfishPlatformHostInterfaceConstructor (
 EFI_STATUS
 RedfishPlatformHostInterfaceNotification (
   OUT EFI_GUID  **InformationReadinessGuid
+  )
+{
+  return EFI_UNSUPPORTED;
+}
+
+/**
+  Get USB device serial number.
+
+  @param[out] SerialNumber    Pointer to retrieve complete serial number.
+                              It is the responsibility of the caller to free the allocated
+                              memory for serial number.
+  @retval EFI_SUCCESS         Serial number is returned.
+  @retval Others              Failed to get the serial number
+**/
+EFI_STATUS
+RedfishPlatformHostInterfaceSerialNumber (
+  OUT CHAR8  **SerialNumber
   )
 {
   return EFI_UNSUPPORTED;

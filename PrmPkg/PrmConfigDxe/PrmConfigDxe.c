@@ -71,7 +71,7 @@ SetRuntimeMemoryRangeAttributes (
   UINTN                            Index;
   EFI_GCD_MEMORY_SPACE_DESCRIPTOR  Descriptor;
 
-  DEBUG ((DEBUG_INFO, "%a %a - Entry.\n", _DBGMSGID_, __FUNCTION__));
+  DEBUG ((DEBUG_INFO, "%a %a - Entry.\n", _DBGMSGID_, __func__));
 
   if ((RuntimeMmioRanges == NULL) || (RuntimeMmioRanges->Count == 0)) {
     return;
@@ -82,14 +82,14 @@ SetRuntimeMemoryRangeAttributes (
       DEBUG_INFO,
       "      %a %a: Runtime MMIO Range [%d].\n",
       _DBGMSGID_,
-      __FUNCTION__,
+      __func__,
       Index
       ));
     DEBUG ((
       DEBUG_INFO,
       "      %a %a: Physical address = 0x%016x. Length = 0x%x.\n",
       _DBGMSGID_,
-      __FUNCTION__,
+      __func__,
       RuntimeMmioRanges->Range[Index].PhysicalBaseAddress,
       RuntimeMmioRanges->Range[Index].Length
       ));
@@ -100,12 +100,17 @@ SetRuntimeMemoryRangeAttributes (
 
     Status2 = EFI_NOT_FOUND;
     Status  = gDS->GetMemorySpaceDescriptor (RuntimeMmioRanges->Range[Index].PhysicalBaseAddress, &Descriptor);
-    if (!EFI_ERROR (Status) &&
-        (
-         ((Descriptor.GcdMemoryType != EfiGcdMemoryTypeMemoryMappedIo) && (Descriptor.GcdMemoryType != EfiGcdMemoryTypeReserved)) ||
-         ((Descriptor.Length & EFI_PAGE_MASK) != 0)
-        )
-        )
+    if (!EFI_ERROR (Status) && (Descriptor.GcdMemoryType == EfiGcdMemoryTypeNonExistent)) {
+      // The MMIO range was found in the GCD, but is non-existent. We need to add this MMIO range to the GCD so that
+      // the PRM module can use it. As such, mark it as not found, as the behavior we want is the same as in that
+      // case.
+      Status = EFI_NOT_FOUND;
+    } else if (!EFI_ERROR (Status) &&
+               (
+                ((Descriptor.GcdMemoryType != EfiGcdMemoryTypeMemoryMappedIo) && (Descriptor.GcdMemoryType != EfiGcdMemoryTypeReserved)) ||
+                ((Descriptor.Length & EFI_PAGE_MASK) != 0)
+               )
+               )
     {
       Status2 =  gDS->RemoveMemorySpace (
                         RuntimeMmioRanges->Range[Index].PhysicalBaseAddress,
@@ -141,7 +146,7 @@ SetRuntimeMemoryRangeAttributes (
         DEBUG_ERROR,
         "      %a %a: Error [%r] finding descriptor for runtime memory range 0x%016x.\n",
         _DBGMSGID_,
-        __FUNCTION__,
+        __func__,
         Status,
         RuntimeMmioRanges->Range[Index].PhysicalBaseAddress
         ));
@@ -152,10 +157,15 @@ SetRuntimeMemoryRangeAttributes (
       continue;
     }
 
+    // The memory space descriptor access attributes are not accurate. Don't pass
+    // in access attributes so SetMemorySpaceAttributes() doesn't update them.
+    // EFI_MEMORY_RUNTIME is not a CPU arch attribute, so calling
+    // SetMemorySpaceAttributes() with only it set will not clear existing page table
+    // attributes for this region, such as EFI_MEMORY_XP
     Status = gDS->SetMemorySpaceAttributes (
                     RuntimeMmioRanges->Range[Index].PhysicalBaseAddress,
                     (UINT64)RuntimeMmioRanges->Range[Index].Length,
-                    Descriptor.Attributes | EFI_MEMORY_RUNTIME
+                    EFI_MEMORY_RUNTIME
                     );
     ASSERT_EFI_ERROR (Status);
     if (EFI_ERROR (Status)) {
@@ -163,12 +173,12 @@ SetRuntimeMemoryRangeAttributes (
         DEBUG_ERROR,
         "      %a %a: Error [%r] setting descriptor for runtime memory range 0x%016x.\n",
         _DBGMSGID_,
-        __FUNCTION__,
+        __func__,
         Status,
         RuntimeMmioRanges->Range[Index].PhysicalBaseAddress
         ));
     } else {
-      DEBUG ((DEBUG_INFO, "      %a %a: Successfully set runtime attribute for the MMIO range.\n", _DBGMSGID_, __FUNCTION__));
+      DEBUG ((DEBUG_INFO, "      %a %a: Successfully set runtime attribute for the MMIO range.\n", _DBGMSGID_, __func__));
     }
   }
 }
@@ -189,7 +199,7 @@ StoreVirtualMemoryAddressChangePointers (
   EFI_HANDLE           *HandleBuffer;
   PRM_CONFIG_PROTOCOL  *PrmConfigProtocol;
 
-  DEBUG ((DEBUG_INFO, "%a %a - Entry.\n", _DBGMSGID_, __FUNCTION__));
+  DEBUG ((DEBUG_INFO, "%a %a - Entry.\n", _DBGMSGID_, __func__));
 
   RangeIndex = 0;
 
@@ -199,7 +209,7 @@ StoreVirtualMemoryAddressChangePointers (
       DEBUG_ERROR,
       "  %a %a: Memory allocation for runtime MMIO pointer array failed.\n",
       _DBGMSGID_,
-      __FUNCTION__
+      __func__
       ));
     ASSERT (FALSE);
     return;
@@ -232,7 +242,7 @@ StoreVirtualMemoryAddressChangePointers (
             DEBUG_ERROR,
             "  %a %a: Index out of bounds - Actual count (%d) of runtime MMIO ranges exceeds maximum count (%d).\n",
             _DBGMSGID_,
-            __FUNCTION__,
+            __func__,
             RangeIndex + 1,
             mMaxRuntimeMmioRangeCount
             ));
@@ -248,7 +258,7 @@ StoreVirtualMemoryAddressChangePointers (
       DEBUG_INFO,
       "  %a %a: %d MMIO ranges buffers saved for future virtual memory conversion.\n",
       _DBGMSGID_,
-      __FUNCTION__,
+      __func__,
       RangeIndex
       ));
   }
@@ -277,12 +287,12 @@ ValidatePrmDataBuffer (
   }
 
   if (PrmDataBuffer->Header.Signature != PRM_DATA_BUFFER_HEADER_SIGNATURE) {
-    DEBUG ((DEBUG_ERROR, "  %a %a: The PRM data buffer signature is invalid. PRM module.\n", _DBGMSGID_, __FUNCTION__));
+    DEBUG ((DEBUG_ERROR, "  %a %a: The PRM data buffer signature is invalid. PRM module.\n", _DBGMSGID_, __func__));
     return EFI_NOT_FOUND;
   }
 
   if (PrmDataBuffer->Header.Length < sizeof (PRM_DATA_BUFFER_HEADER)) {
-    DEBUG ((DEBUG_ERROR, "  %a %a: The PRM data buffer length is invalid.\n", _DBGMSGID_, __FUNCTION__));
+    DEBUG ((DEBUG_ERROR, "  %a %a: The PRM data buffer length is invalid.\n", _DBGMSGID_, __func__));
     return EFI_BUFFER_TOO_SMALL;
   }
 
@@ -311,12 +321,12 @@ ValidatePrmContextBuffer (
   }
 
   if (PrmContextBuffer->Signature != PRM_CONTEXT_BUFFER_SIGNATURE) {
-    DEBUG ((DEBUG_ERROR, "  %a %a: The PRM context buffer signature is invalid.\n", _DBGMSGID_, __FUNCTION__));
+    DEBUG ((DEBUG_ERROR, "  %a %a: The PRM context buffer signature is invalid.\n", _DBGMSGID_, __func__));
     return EFI_NOT_FOUND;
   }
 
   if (IsZeroGuid (&PrmContextBuffer->HandlerGuid)) {
-    DEBUG ((DEBUG_ERROR, "  %a %a: The PRM context buffer GUID is zero.\n", _DBGMSGID_, __FUNCTION__));
+    DEBUG ((DEBUG_ERROR, "  %a %a: The PRM context buffer GUID is zero.\n", _DBGMSGID_, __func__));
     return EFI_NOT_FOUND;
   }
 
@@ -325,7 +335,7 @@ ValidatePrmContextBuffer (
       DEBUG_ERROR,
       "    %a %a: Error in static buffer for PRM handler %g.\n",
       _DBGMSGID_,
-      __FUNCTION__,
+      __func__,
       &PrmContextBuffer->HandlerGuid
       ));
     return EFI_NOT_FOUND;
@@ -387,7 +397,7 @@ PrmConfigEndOfDxeNotification (
   PRM_CONTEXT_BUFFER   *CurrentContextBuffer;
   PRM_CONFIG_PROTOCOL  *PrmConfigProtocol;
 
-  DEBUG ((DEBUG_INFO, "%a %a - Entry.\n", _DBGMSGID_, __FUNCTION__));
+  DEBUG ((DEBUG_INFO, "%a %a - Entry.\n", _DBGMSGID_, __func__));
 
   HandleBuffer = NULL;
   Status       = gBS->LocateHandleBuffer (
@@ -413,11 +423,11 @@ PrmConfigEndOfDxeNotification (
         DEBUG_INFO,
         "  %a %a: Found PRM configuration protocol for PRM module %g.\n",
         _DBGMSGID_,
-        __FUNCTION__,
+        __func__,
         &PrmConfigProtocol->ModuleContextBuffers.ModuleGuid
         ));
 
-      DEBUG ((DEBUG_INFO, "      %a %a: Validating module context buffers...\n", _DBGMSGID_, __FUNCTION__));
+      DEBUG ((DEBUG_INFO, "      %a %a: Validating module context buffers...\n", _DBGMSGID_, __func__));
       for (BufferIndex = 0; BufferIndex < PrmConfigProtocol->ModuleContextBuffers.BufferCount; BufferIndex++) {
         CurrentContextBuffer = &(PrmConfigProtocol->ModuleContextBuffers.Buffer[BufferIndex]);
 
@@ -427,20 +437,20 @@ PrmConfigEndOfDxeNotification (
             DEBUG_ERROR,
             "        %a %a: Context buffer validation failed for PRM handler %g.\n",
             _DBGMSGID_,
-            __FUNCTION__,
+            __func__,
             CurrentContextBuffer->HandlerGuid
             ));
         }
       }
 
-      DEBUG ((DEBUG_INFO, "      %a %a: Module context buffer validation complete.\n", _DBGMSGID_, __FUNCTION__));
+      DEBUG ((DEBUG_INFO, "      %a %a: Module context buffer validation complete.\n", _DBGMSGID_, __func__));
 
       if (PrmConfigProtocol->ModuleContextBuffers.RuntimeMmioRanges != NULL) {
         DEBUG ((
           DEBUG_INFO,
           "    %a %a: Found %d PRM runtime MMIO ranges.\n",
           _DBGMSGID_,
-          __FUNCTION__,
+          __func__,
           PrmConfigProtocol->ModuleContextBuffers.RuntimeMmioRanges->Count
           ));
         SetRuntimeMemoryRangeAttributes (PrmConfigProtocol->ModuleContextBuffers.RuntimeMmioRanges);
@@ -478,7 +488,7 @@ PrmConfigEntryPoint (
   EFI_STATUS  Status;
   EFI_EVENT   Event;
 
-  DEBUG ((DEBUG_INFO, "%a %a - Entry.\n", _DBGMSGID_, __FUNCTION__));
+  DEBUG ((DEBUG_INFO, "%a %a - Entry.\n", _DBGMSGID_, __func__));
 
   //
   // Register a notification function to change memory attributes at end of DXE

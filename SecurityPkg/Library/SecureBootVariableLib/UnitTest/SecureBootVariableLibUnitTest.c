@@ -82,7 +82,7 @@ MockSetVariable (
   DEBUG ((
     DEBUG_INFO,
     "%a %s %g %x %x %p\n",
-    __FUNCTION__,
+    __func__,
     VariableName,
     VendorGuid,
     Attributes,
@@ -139,7 +139,7 @@ MockGetVariable (
   DEBUG ((
     DEBUG_INFO,
     "%a %s %g %p %x %p\n",
-    __FUNCTION__,
+    __func__,
     VariableName,
     VendorGuid,
     Attributes,
@@ -163,7 +163,7 @@ MockGetVariable (
     return EFI_BUFFER_TOO_SMALL;
   } else {
     assert_non_null (Data);
-    CopyMem (Data, (VOID *)mock (), TargetSize);
+    CopyMem (Data, (VOID *)(UINTN)mock (), TargetSize);
   }
 
   return EFI_SUCCESS;
@@ -351,10 +351,10 @@ SecureBootCreateDataFromInputSimple (
   UINTN                         SigListSize = 0;
   EFI_STATUS                    Status;
   UINT8                         TestData[] = { 0 };
-  SECURE_BOOT_CERTIFICATE_INFO  KeyInfo    = {
-    .Data     = TestData,
-    .DataSize = sizeof (TestData)
-  };
+  SECURE_BOOT_CERTIFICATE_INFO  KeyInfo;
+
+  KeyInfo.Data     = TestData;
+  KeyInfo.DataSize = sizeof (TestData);
 
   Status = SecureBootCreateDataFromInput (&SigListSize, &SigList, 1, &KeyInfo);
 
@@ -441,16 +441,12 @@ SecureBootCreateDataFromInputMultiple (
   UINT8                         TestData1[] = { 0 };
   UINT8                         TestData2[] = { 1, 2 };
   EFI_STATUS                    Status;
-  SECURE_BOOT_CERTIFICATE_INFO  KeyInfo[2] = {
-    {
-      .Data     = TestData1,
-      .DataSize = sizeof (TestData1)
-    },
-    {
-      .Data     = TestData2,
-      .DataSize = sizeof (TestData2)
-    }
-  };
+  SECURE_BOOT_CERTIFICATE_INFO  KeyInfo[2];
+
+  KeyInfo[0].Data     = TestData1;
+  KeyInfo[0].DataSize = sizeof (TestData1);
+  KeyInfo[1].Data     = TestData2;
+  KeyInfo[1].DataSize = sizeof (TestData2);
 
   Status = SecureBootCreateDataFromInput (&SigListSize, &SigList, 2, KeyInfo);
   UT_ASSERT_NOT_EFI_ERROR (Status);
@@ -1212,35 +1208,42 @@ SetSecureBootVariablesShouldComplete (
   )
 {
   EFI_STATUS                Status;
-  UINT8                     DbDummy     = 0xDE;
-  UINT8                     DbtDummy    = 0xAD;
-  UINT8                     DbxDummy    = 0xBE;
-  UINT8                     KekDummy    = 0xEF;
-  UINT8                     PkDummy     = 0xFE;
-  UINT8                     *Payload    = NULL;
-  UINTN                     PayloadSize = sizeof (DbDummy);
-  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo = {
-    .DbPtr             = &DbDummy,
-    .DbSize            = sizeof (DbDummy),
-    .DbxPtr            = &DbxDummy,
-    .DbxSize           = sizeof (DbxDummy),
-    .DbtPtr            = &DbtDummy,
-    .DbtSize           = sizeof (DbtDummy),
-    .KekPtr            = &KekDummy,
-    .KekSize           = sizeof (KekDummy),
-    .PkPtr             = &PkDummy,
-    .PkSize            = sizeof (PkDummy),
-    .SecureBootKeyName = L"Food"
+  UINT8                     DbDummy    = 0xDE;
+  UINT8                     DbtDummy   = 0xAD;
+  UINT8                     DbxDummy[] = {
+    // Valid Dbx value (SHA256 hash of all 0x00)
+    0x26, 0x16, 0xC4, 0xC1, 0x4C, 0x50, 0x92, 0x40, 0xAC, 0xA9, 0x41, 0xF9, 0x36, 0x93, 0x43, 0x28,
+    0x4C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0xBD, 0x9A, 0xFA, 0x77,
+    0x59, 0x03, 0x32, 0x4D, 0xBD, 0x60, 0x28, 0xF4, 0xE7, 0x8F, 0x78, 0x4B, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
   };
+  UINT8                     KekDummy = 0xEF;
+  UINT8                     PkDummy  = 0xFE;
+  UINT8                     *Payload = NULL;
+  UINTN                     PayloadSize;
+  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo;
+
+  PayloadInfo.DbPtr             = &DbDummy;
+  PayloadInfo.DbSize            = sizeof (DbDummy);
+  PayloadInfo.DbxPtr            = &DbxDummy;
+  PayloadInfo.DbxSize           = sizeof (DbxDummy);
+  PayloadInfo.DbtPtr            = &DbtDummy;
+  PayloadInfo.DbtSize           = sizeof (DbtDummy);
+  PayloadInfo.KekPtr            = &KekDummy;
+  PayloadInfo.KekSize           = sizeof (KekDummy);
+  PayloadInfo.PkPtr             = &PkDummy;
+  PayloadInfo.PkSize            = sizeof (PkDummy);
+  PayloadInfo.SecureBootKeyName = L"Food";
 
   expect_memory (MockGetVariable, VariableName, EFI_SECURE_BOOT_MODE_NAME, sizeof (EFI_SECURE_BOOT_MODE_NAME));
   expect_value (MockGetVariable, VendorGuid, &gEfiGlobalVariableGuid);
   expect_value (MockGetVariable, *DataSize, 0);
 
   will_return (MockGetVariable, FALSE);
-
-  Payload = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
-  Status  = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
+  Payload     = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
+  PayloadSize = sizeof (DbxDummy);
+  Status      = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
   UT_ASSERT_NOT_EFI_ERROR (Status);
   UT_ASSERT_EQUAL (PayloadSize, VAR_AUTH_DESC_SIZE + sizeof (DbxDummy));
 
@@ -1382,14 +1385,21 @@ SetSecureBootVariablesShouldStopFailDBX (
   )
 {
   EFI_STATUS                Status;
-  UINT8                     DbxDummy    = 0xBE;
+  UINT8                     DbxDummy[] = {
+    // Valid Dbx value (SHA256 hash of all 0x00)
+    0x26, 0x16, 0xC4, 0xC1, 0x4C, 0x50, 0x92, 0x40, 0xAC, 0xA9, 0x41, 0xF9, 0x36, 0x93, 0x43, 0x28,
+    0x4C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0xBD, 0x9A, 0xFA, 0x77,
+    0x59, 0x03, 0x32, 0x4D, 0xBD, 0x60, 0x28, 0xF4, 0xE7, 0x8F, 0x78, 0x4B, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+  };
   UINT8                     *Payload    = NULL;
   UINTN                     PayloadSize = sizeof (DbxDummy);
-  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo = {
-    .DbxPtr            = &DbxDummy,
-    .DbxSize           = sizeof (DbxDummy),
-    .SecureBootKeyName = L"Fail DBX"
-  };
+  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo;
+
+  PayloadInfo.DbxPtr            = &DbxDummy;
+  PayloadInfo.DbxSize           = sizeof (DbxDummy);
+  PayloadInfo.SecureBootKeyName = L"Fail DBX";
 
   expect_memory (MockGetVariable, VariableName, EFI_SECURE_BOOT_MODE_NAME, sizeof (EFI_SECURE_BOOT_MODE_NAME));
   expect_value (MockGetVariable, VendorGuid, &gEfiGlobalVariableGuid);
@@ -1438,17 +1448,24 @@ SetSecureBootVariablesShouldStopFailDB (
   )
 {
   EFI_STATUS                Status;
-  UINT8                     DbDummy     = 0xDE;
-  UINT8                     DbxDummy    = 0xBE;
-  UINT8                     *Payload    = NULL;
-  UINTN                     PayloadSize = sizeof (DbDummy);
-  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo = {
-    .DbPtr             = &DbDummy,
-    .DbSize            = sizeof (DbDummy),
-    .DbxPtr            = &DbxDummy,
-    .DbxSize           = sizeof (DbxDummy),
-    .SecureBootKeyName = L"Fail DB"
+  UINT8                     DbDummy    = 0xDE;
+  UINT8                     DbxDummy[] = {
+    // Valid Dbx value (SHA256 hash of all 0x00)
+    0x26, 0x16, 0xC4, 0xC1, 0x4C, 0x50, 0x92, 0x40, 0xAC, 0xA9, 0x41, 0xF9, 0x36, 0x93, 0x43, 0x28,
+    0x4C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0xBD, 0x9A, 0xFA, 0x77,
+    0x59, 0x03, 0x32, 0x4D, 0xBD, 0x60, 0x28, 0xF4, 0xE7, 0x8F, 0x78, 0x4B, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
   };
+  UINT8                     *Payload = NULL;
+  UINTN                     PayloadSize;
+  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo;
+
+  PayloadInfo.DbPtr             = &DbDummy;
+  PayloadInfo.DbSize            = sizeof (DbDummy);
+  PayloadInfo.DbxPtr            = &DbxDummy;
+  PayloadInfo.DbxSize           = sizeof (DbxDummy);
+  PayloadInfo.SecureBootKeyName = L"Fail DB";
 
   expect_memory (MockGetVariable, VariableName, EFI_SECURE_BOOT_MODE_NAME, sizeof (EFI_SECURE_BOOT_MODE_NAME));
   expect_value (MockGetVariable, VendorGuid, &gEfiGlobalVariableGuid);
@@ -1456,8 +1473,9 @@ SetSecureBootVariablesShouldStopFailDB (
 
   will_return (MockGetVariable, FALSE);
 
-  Payload = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
-  Status  = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
+  Payload     = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
+  PayloadSize = sizeof (DbxDummy);
+  Status      = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
   UT_ASSERT_NOT_EFI_ERROR (Status);
   UT_ASSERT_EQUAL (PayloadSize, VAR_AUTH_DESC_SIZE + sizeof (DbxDummy));
 
@@ -1511,20 +1529,27 @@ SetSecureBootVariablesShouldStopFailDBT (
   )
 {
   EFI_STATUS                Status;
-  UINT8                     DbDummy     = 0xDE;
-  UINT8                     DbtDummy    = 0xAD;
-  UINT8                     DbxDummy    = 0xBE;
-  UINT8                     *Payload    = NULL;
-  UINTN                     PayloadSize = sizeof (DbDummy);
-  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo = {
-    .DbPtr             = &DbDummy,
-    .DbSize            = sizeof (DbDummy),
-    .DbxPtr            = &DbxDummy,
-    .DbxSize           = sizeof (DbxDummy),
-    .DbtPtr            = &DbtDummy,
-    .DbtSize           = sizeof (DbtDummy),
-    .SecureBootKeyName = L"Fail DBT"
+  UINT8                     DbDummy    = 0xDE;
+  UINT8                     DbtDummy   = 0xAD;
+  UINT8                     DbxDummy[] = {
+    // Valid Dbx value (SHA256 hash of all 0x00)
+    0x26, 0x16, 0xC4, 0xC1, 0x4C, 0x50, 0x92, 0x40, 0xAC, 0xA9, 0x41, 0xF9, 0x36, 0x93, 0x43, 0x28,
+    0x4C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0xBD, 0x9A, 0xFA, 0x77,
+    0x59, 0x03, 0x32, 0x4D, 0xBD, 0x60, 0x28, 0xF4, 0xE7, 0x8F, 0x78, 0x4B, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
   };
+  UINT8                     *Payload = NULL;
+  UINTN                     PayloadSize;
+  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo;
+
+  PayloadInfo.DbPtr             = &DbDummy;
+  PayloadInfo.DbSize            = sizeof (DbDummy);
+  PayloadInfo.DbxPtr            = &DbxDummy;
+  PayloadInfo.DbxSize           = sizeof (DbxDummy);
+  PayloadInfo.DbtPtr            = &DbtDummy;
+  PayloadInfo.DbtSize           = sizeof (DbtDummy);
+  PayloadInfo.SecureBootKeyName = L"Fail DBT";
 
   expect_memory (MockGetVariable, VariableName, EFI_SECURE_BOOT_MODE_NAME, sizeof (EFI_SECURE_BOOT_MODE_NAME));
   expect_value (MockGetVariable, VendorGuid, &gEfiGlobalVariableGuid);
@@ -1532,8 +1557,9 @@ SetSecureBootVariablesShouldStopFailDBT (
 
   will_return (MockGetVariable, FALSE);
 
-  Payload = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
-  Status  = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
+  Payload     = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
+  PayloadSize = sizeof (DbxDummy);
+  Status      = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
   UT_ASSERT_NOT_EFI_ERROR (Status);
   UT_ASSERT_EQUAL (PayloadSize, VAR_AUTH_DESC_SIZE + sizeof (DbxDummy));
 
@@ -1601,26 +1627,33 @@ SetSecureBootVariablesShouldStopFailKEK (
   )
 {
   EFI_STATUS                Status;
-  UINT8                     DbDummy     = 0xDE;
-  UINT8                     DbtDummy    = 0xAD;
-  UINT8                     DbxDummy    = 0xBE;
-  UINT8                     KekDummy    = 0xEF;
-  UINT8                     PkDummy     = 0xFE;
-  UINT8                     *Payload    = NULL;
-  UINTN                     PayloadSize = sizeof (DbDummy);
-  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo = {
-    .DbPtr             = &DbDummy,
-    .DbSize            = sizeof (DbDummy),
-    .DbxPtr            = &DbxDummy,
-    .DbxSize           = sizeof (DbxDummy),
-    .DbtPtr            = &DbtDummy,
-    .DbtSize           = sizeof (DbtDummy),
-    .KekPtr            = &KekDummy,
-    .KekSize           = sizeof (KekDummy),
-    .PkPtr             = &PkDummy,
-    .PkSize            = sizeof (PkDummy),
-    .SecureBootKeyName = L"Food"
+  UINT8                     DbDummy    = 0xDE;
+  UINT8                     DbtDummy   = 0xAD;
+  UINT8                     DbxDummy[] = {
+    // Valid Dbx value (SHA256 hash of all 0x00)
+    0x26, 0x16, 0xC4, 0xC1, 0x4C, 0x50, 0x92, 0x40, 0xAC, 0xA9, 0x41, 0xF9, 0x36, 0x93, 0x43, 0x28,
+    0x4C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0xBD, 0x9A, 0xFA, 0x77,
+    0x59, 0x03, 0x32, 0x4D, 0xBD, 0x60, 0x28, 0xF4, 0xE7, 0x8F, 0x78, 0x4B, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
   };
+  UINT8                     KekDummy = 0xEF;
+  UINT8                     PkDummy  = 0xFE;
+  UINT8                     *Payload = NULL;
+  UINTN                     PayloadSize;
+  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo;
+
+  PayloadInfo.DbPtr             = &DbDummy;
+  PayloadInfo.DbSize            = sizeof (DbDummy);
+  PayloadInfo.DbxPtr            = &DbxDummy;
+  PayloadInfo.DbxSize           = sizeof (DbxDummy);
+  PayloadInfo.DbtPtr            = &DbtDummy;
+  PayloadInfo.DbtSize           = sizeof (DbtDummy);
+  PayloadInfo.KekPtr            = &KekDummy;
+  PayloadInfo.KekSize           = sizeof (KekDummy);
+  PayloadInfo.PkPtr             = &PkDummy;
+  PayloadInfo.PkSize            = sizeof (PkDummy);
+  PayloadInfo.SecureBootKeyName = L"Food";
 
   expect_memory (MockGetVariable, VariableName, EFI_SECURE_BOOT_MODE_NAME, sizeof (EFI_SECURE_BOOT_MODE_NAME));
   expect_value (MockGetVariable, VendorGuid, &gEfiGlobalVariableGuid);
@@ -1628,8 +1661,9 @@ SetSecureBootVariablesShouldStopFailKEK (
 
   will_return (MockGetVariable, FALSE);
 
-  Payload = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
-  Status  = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
+  Payload     = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
+  PayloadSize = sizeof (DbxDummy);
+  Status      = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
   UT_ASSERT_NOT_EFI_ERROR (Status);
   UT_ASSERT_EQUAL (PayloadSize, VAR_AUTH_DESC_SIZE + sizeof (DbxDummy));
 
@@ -1711,26 +1745,33 @@ SetSecureBootVariablesShouldStopFailPK (
   )
 {
   EFI_STATUS                Status;
-  UINT8                     DbDummy     = 0xDE;
-  UINT8                     DbtDummy    = 0xAD;
-  UINT8                     DbxDummy    = 0xBE;
-  UINT8                     KekDummy    = 0xEF;
-  UINT8                     PkDummy     = 0xFE;
-  UINT8                     *Payload    = NULL;
-  UINTN                     PayloadSize = sizeof (DbDummy);
-  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo = {
-    .DbPtr             = &DbDummy,
-    .DbSize            = sizeof (DbDummy),
-    .DbxPtr            = &DbxDummy,
-    .DbxSize           = sizeof (DbxDummy),
-    .DbtPtr            = &DbtDummy,
-    .DbtSize           = sizeof (DbtDummy),
-    .KekPtr            = &KekDummy,
-    .KekSize           = sizeof (KekDummy),
-    .PkPtr             = &PkDummy,
-    .PkSize            = sizeof (PkDummy),
-    .SecureBootKeyName = L"Food"
+  UINT8                     DbDummy    = 0xDE;
+  UINT8                     DbtDummy   = 0xAD;
+  UINT8                     DbxDummy[] = {
+    // Valid Dbx value (SHA256 hash of all 0x00)
+    0x26, 0x16, 0xC4, 0xC1, 0x4C, 0x50, 0x92, 0x40, 0xAC, 0xA9, 0x41, 0xF9, 0x36, 0x93, 0x43, 0x28,
+    0x4C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0xBD, 0x9A, 0xFA, 0x77,
+    0x59, 0x03, 0x32, 0x4D, 0xBD, 0x60, 0x28, 0xF4, 0xE7, 0x8F, 0x78, 0x4B, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
   };
+  UINT8                     KekDummy = 0xEF;
+  UINT8                     PkDummy  = 0xFE;
+  UINT8                     *Payload = NULL;
+  UINTN                     PayloadSize;
+  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo;
+
+  PayloadInfo.DbPtr             = &DbDummy;
+  PayloadInfo.DbSize            = sizeof (DbDummy);
+  PayloadInfo.DbxPtr            = &DbxDummy;
+  PayloadInfo.DbxSize           = sizeof (DbxDummy);
+  PayloadInfo.DbtPtr            = &DbtDummy;
+  PayloadInfo.DbtSize           = sizeof (DbtDummy);
+  PayloadInfo.KekPtr            = &KekDummy;
+  PayloadInfo.KekSize           = sizeof (KekDummy);
+  PayloadInfo.PkPtr             = &PkDummy;
+  PayloadInfo.PkSize            = sizeof (PkDummy);
+  PayloadInfo.SecureBootKeyName = L"Food";
 
   expect_memory (MockGetVariable, VariableName, EFI_SECURE_BOOT_MODE_NAME, sizeof (EFI_SECURE_BOOT_MODE_NAME));
   expect_value (MockGetVariable, VendorGuid, &gEfiGlobalVariableGuid);
@@ -1738,8 +1779,9 @@ SetSecureBootVariablesShouldStopFailPK (
 
   will_return (MockGetVariable, FALSE);
 
-  Payload = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
-  Status  = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
+  Payload     = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
+  PayloadSize = sizeof (DbxDummy);
+  Status      = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
   UT_ASSERT_NOT_EFI_ERROR (Status);
   UT_ASSERT_EQUAL (PayloadSize, VAR_AUTH_DESC_SIZE + sizeof (DbxDummy));
 
@@ -1835,25 +1877,32 @@ SetSecureBootVariablesDBTOptional (
   )
 {
   EFI_STATUS                Status;
-  UINT8                     DbDummy     = 0xDE;
-  UINT8                     DbxDummy    = 0xBE;
-  UINT8                     KekDummy    = 0xEF;
-  UINT8                     PkDummy     = 0xFE;
-  UINT8                     *Payload    = NULL;
-  UINTN                     PayloadSize = sizeof (DbDummy);
-  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo = {
-    .DbPtr             = &DbDummy,
-    .DbSize            = sizeof (DbDummy),
-    .DbxPtr            = &DbxDummy,
-    .DbxSize           = sizeof (DbxDummy),
-    .DbtPtr            = NULL,
-    .DbtSize           = 0,
-    .KekPtr            = &KekDummy,
-    .KekSize           = sizeof (KekDummy),
-    .PkPtr             = &PkDummy,
-    .PkSize            = sizeof (PkDummy),
-    .SecureBootKeyName = L"Food"
+  UINT8                     DbDummy    = 0xDE;
+  UINT8                     DbxDummy[] = {
+    // Valid Dbx value (SHA256 hash of all 0x00)
+    0x26, 0x16, 0xC4, 0xC1, 0x4C, 0x50, 0x92, 0x40, 0xAC, 0xA9, 0x41, 0xF9, 0x36, 0x93, 0x43, 0x28,
+    0x4C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0xBD, 0x9A, 0xFA, 0x77,
+    0x59, 0x03, 0x32, 0x4D, 0xBD, 0x60, 0x28, 0xF4, 0xE7, 0x8F, 0x78, 0x4B, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
   };
+  UINT8                     KekDummy = 0xEF;
+  UINT8                     PkDummy  = 0xFE;
+  UINT8                     *Payload = NULL;
+  UINTN                     PayloadSize;
+  SECURE_BOOT_PAYLOAD_INFO  PayloadInfo;
+
+  PayloadInfo.DbPtr             = &DbDummy;
+  PayloadInfo.DbSize            = sizeof (DbDummy);
+  PayloadInfo.DbxPtr            = &DbxDummy;
+  PayloadInfo.DbxSize           = sizeof (DbxDummy);
+  PayloadInfo.DbtPtr            = NULL;
+  PayloadInfo.DbtSize           = 0;
+  PayloadInfo.KekPtr            = &KekDummy;
+  PayloadInfo.KekSize           = sizeof (KekDummy);
+  PayloadInfo.PkPtr             = &PkDummy;
+  PayloadInfo.PkSize            = sizeof (PkDummy);
+  PayloadInfo.SecureBootKeyName = L"Food";
 
   expect_memory (MockGetVariable, VariableName, EFI_SECURE_BOOT_MODE_NAME, sizeof (EFI_SECURE_BOOT_MODE_NAME));
   expect_value (MockGetVariable, VendorGuid, &gEfiGlobalVariableGuid);
@@ -1861,8 +1910,9 @@ SetSecureBootVariablesDBTOptional (
 
   will_return (MockGetVariable, FALSE);
 
-  Payload = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
-  Status  = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
+  Payload     = AllocateCopyPool (sizeof (DbxDummy), &DbxDummy);
+  PayloadSize = sizeof (DbxDummy);
+  Status      = CreateTimeBasedPayload (&PayloadSize, &Payload, &mDefaultPayloadTimestamp);
   UT_ASSERT_NOT_EFI_ERROR (Status);
   UT_ASSERT_EQUAL (PayloadSize, VAR_AUTH_DESC_SIZE + sizeof (DbxDummy));
 

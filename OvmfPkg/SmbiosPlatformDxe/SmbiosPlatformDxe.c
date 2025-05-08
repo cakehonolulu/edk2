@@ -160,7 +160,7 @@ InstallAllStructures (
     DateStr = (CHAR16 *)FixedPcdGetPtr (PcdFirmwareReleaseDateString);
     DateLen = StrLen (DateStr);
     if (DateLen < 3) {
-      DateStr = L"unknown";
+      DateStr = L"02/02/2022";
       DateLen = StrLen (DateStr);
     }
 

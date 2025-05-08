@@ -136,6 +136,18 @@
   MdePkg/Library/CcProbeLibNull/CcProbeLibNull.inf
   MdePkg/Library/SmmCpuRendezvousLibNull/SmmCpuRendezvousLibNull.inf
 
+  MdePkg/Library/JedecJep106Lib/JedecJep106Lib.inf
+  MdePkg/Library/BaseFdtLib/BaseFdtLib.inf
+  MdePkg/Library/PeiRngLib/PeiRngLib.inf
+
+  MdePkg/Library/StackCheckFailureHookLibNull/StackCheckFailureHookLibNull.inf
+  MdePkg/Library/StackCheckLibNull/StackCheckLibNull.inf
+  MdePkg/Library/StackCheckLib/StackCheckLib.inf
+  MdePkg/Library/DynamicStackCookieEntryPointLib/DxeCoreEntryPoint.inf
+  MdePkg/Library/DynamicStackCookieEntryPointLib/StandaloneMmDriverEntryPoint.inf
+  MdePkg/Library/DynamicStackCookieEntryPointLib/UefiApplicationEntryPoint.inf
+  MdePkg/Library/DynamicStackCookieEntryPointLib/UefiDriverEntryPoint.inf
+
 [Components.IA32, Components.X64, Components.ARM, Components.AARCH64]
   #
   # Add UEFI Target Based Unit Tests
@@ -181,6 +193,12 @@
   MdePkg/Library/MmServicesTableLib/MmServicesTableLib.inf
   MdePkg/Library/MmUnblockMemoryLib/MmUnblockMemoryLibNull.inf
   MdePkg/Library/TdxLib/TdxLib.inf
+  MdePkg/Library/MipiSysTLib/MipiSysTLib.inf
+  MdePkg/Library/TraceHubDebugSysTLibNull/TraceHubDebugSysTLibNull.inf
+
+[Components.X64]
+  MdePkg/Library/DynamicStackCookieEntryPointLib/StandaloneMmCoreEntryPoint.inf
+  MdePkg/Library/StandaloneMmCoreEntryPoint/StandaloneMmCoreEntryPoint.inf
 
 [Components.EBC]
   MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic.inf
@@ -188,9 +206,17 @@
 
 [Components.ARM, Components.AARCH64]
   MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsicArmVirt.inf
-  MdePkg/Library/BaseStackCheckLib/BaseStackCheckLib.inf
+  MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib.inf
+  MdePkg/Library/ArmSmcLib/ArmSmcLib.inf
+  MdePkg/Library/ArmSmcLibNull/ArmSmcLibNull.inf
+  MdePkg/Library/ArmSvcLib/ArmSvcLib.inf
 
 [Components.RISCV64]
   MdePkg/Library/BaseRiscVSbiLib/BaseRiscVSbiLib.inf
+  MdePkg/Library/BaseSerialPortLibRiscVSbiLib/BaseSerialPortLibRiscVSbiLib.inf
+  MdePkg/Library/BaseSerialPortLibRiscVSbiLib/BaseSerialPortLibRiscVSbiLibRam.inf
+
+[Components.LOONGARCH64]
+  MdePkg/Library/PeiServicesTablePointerLibKs0/PeiServicesTablePointerLibKs0.inf
 
 [BuildOptions]

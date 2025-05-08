@@ -52,7 +52,6 @@ Abstract:
 #include <Protocol/PciRootBridgeIo.h>
 #include <Protocol/S3SaveState.h>
 #include <Protocol/DxeSmmReadyToLock.h>
-#include <Protocol/LoadedImage.h>
 
 #include <Guid/Acpi.h>
 #include <Guid/SmBios.h>
@@ -126,7 +125,7 @@ extern VENDOR_DEVICE_PATH        gTerminalTypeDeviceNode;
     1 \
   }
 
-#define gPcAnsiTerminal \
+#define gVtUtf8Terminal \
   { \
     { \
       MESSAGING_DEVICE_PATH, \
@@ -136,7 +135,7 @@ extern VENDOR_DEVICE_PATH        gTerminalTypeDeviceNode;
         (UINT8) ((sizeof (VENDOR_DEVICE_PATH)) >> 8) \
       } \
     }, \
-    DEVICE_PATH_MESSAGING_PC_ANSI \
+    DEVICE_PATH_MESSAGING_VT_UTF8 \
   }
 
 #define gEndEntire \

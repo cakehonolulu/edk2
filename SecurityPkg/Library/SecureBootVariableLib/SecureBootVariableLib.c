@@ -23,6 +23,21 @@
 #include <Library/SecureBootVariableLib.h>
 #include <Library/PlatformPKProtectionLib.h>
 
+//
+// This is the minimum size of a EFI_SIGNATURE_LIST and data and still be valid.
+//
+// The UEFI specification defines this as:
+//  Each signature list is a list of signatures of one type, identified by SignatureType.
+//  The signature list contains a header and then an array of zero or more signatures in
+//  the format specified by the header. The size of each signature in the signature list
+//  is specified by SignatureSize.
+//
+// This is the size of a signature list with some data in it. Effectively 44 bytes are
+// required to set the DBX. However in reality, the size of a real payload will be larger
+// since this miniumum size does not consider the SIGNATURE_LIST
+//
+#define MINIMUM_VALID_SIGNATURE_LIST  (sizeof(EFI_SIGNATURE_LIST) + sizeof(EFI_SIGNATURE_DATA) - 1)
+
 // This time can be used when deleting variables, as it should be greater than any variable time.
 EFI_TIME  mMaxTimestamp = {
   0xFFFF,     // Year
@@ -276,7 +291,7 @@ CreateTimeBasedPayload (
   UINTN                          DescriptorSize;
 
   if ((Data == NULL) || (DataSize == NULL) || (Time == NULL)) {
-    DEBUG ((DEBUG_ERROR, "%a(), invalid arg\n", __FUNCTION__));
+    DEBUG ((DEBUG_ERROR, "%a(), invalid arg\n", __func__));
     return EFI_INVALID_PARAMETER;
   }
 
@@ -292,7 +307,7 @@ CreateTimeBasedPayload (
   DescriptorSize = OFFSET_OF (EFI_VARIABLE_AUTHENTICATION_2, AuthInfo) + OFFSET_OF (WIN_CERTIFICATE_UEFI_GUID, CertData);
   NewData        = (UINT8 *)AllocateZeroPool (DescriptorSize + PayloadSize);
   if (NewData == NULL) {
-    DEBUG ((DEBUG_ERROR, "%a() Out of resources.\n", __FUNCTION__));
+    DEBUG ((DEBUG_ERROR, "%a() Out of resources.\n", __func__));
     return EFI_OUT_OF_RESOURCES;
   }
 
@@ -603,13 +618,13 @@ DeleteSecureBootVariables (
 {
   EFI_STATUS  Status, TempStatus;
 
-  DEBUG ((DEBUG_INFO, "%a - Attempting to delete the Secure Boot variables.\n", __FUNCTION__));
+  DEBUG ((DEBUG_INFO, "%a - Attempting to delete the Secure Boot variables.\n", __func__));
 
   //
   // Step 1: Notify that a PK update is coming shortly...
   Status = DisablePKProtection ();
   if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "%a - Failed to signal PK update start! %r\n", __FUNCTION__, Status));
+    DEBUG ((DEBUG_ERROR, "%a - Failed to signal PK update start! %r\n", __func__, Status));
     // Classify this as a PK deletion error.
     Status = EFI_ABORTED;
   }
@@ -619,7 +634,7 @@ DeleteSecureBootVariables (
   // Let's try to nuke the PK, why not...
   if (!EFI_ERROR (Status)) {
     Status = DeletePlatformKey ();
-    DEBUG ((DEBUG_INFO, "%a - PK Delete = %r\n", __FUNCTION__, Status));
+    DEBUG ((DEBUG_INFO, "%a - PK Delete = %r\n", __func__, Status));
     // If the PK is not found, then our work here is done.
     if (Status == EFI_NOT_FOUND) {
       Status = EFI_SUCCESS;
@@ -646,25 +661,25 @@ DeleteSecureBootVariables (
     // the variables anyway.
     //
     TempStatus = DeleteKEK ();
-    DEBUG ((DEBUG_INFO, "%a - KEK Delete = %r\n", __FUNCTION__, TempStatus));
+    DEBUG ((DEBUG_INFO, "%a - KEK Delete = %r\n", __func__, TempStatus));
     if (EFI_ERROR (TempStatus) && (TempStatus != EFI_NOT_FOUND)) {
       Status = EFI_ACCESS_DENIED;
     }
 
     TempStatus = DeleteDb ();
-    DEBUG ((DEBUG_INFO, "%a - db Delete = %r\n", __FUNCTION__, TempStatus));
+    DEBUG ((DEBUG_INFO, "%a - db Delete = %r\n", __func__, TempStatus));
     if (EFI_ERROR (TempStatus) && (TempStatus != EFI_NOT_FOUND)) {
       Status = EFI_ACCESS_DENIED;
     }
 
     TempStatus = DeleteDbx ();
-    DEBUG ((DEBUG_INFO, "%a - dbx Delete = %r\n", __FUNCTION__, TempStatus));
+    DEBUG ((DEBUG_INFO, "%a - dbx Delete = %r\n", __func__, TempStatus));
     if (EFI_ERROR (TempStatus) && (TempStatus != EFI_NOT_FOUND)) {
       Status = EFI_ACCESS_DENIED;
     }
 
     TempStatus = DeleteDbt ();
-    DEBUG ((DEBUG_INFO, "%a - dbt Delete = %r\n", __FUNCTION__, TempStatus));
+    DEBUG ((DEBUG_INFO, "%a - dbt Delete = %r\n", __func__, TempStatus));
     if (EFI_ERROR (TempStatus) && (TempStatus != EFI_NOT_FOUND)) {
       Status = EFI_ACCESS_DENIED;
     }
@@ -752,7 +767,7 @@ EnrollFromInput (
     DEBUG ((
       DEBUG_ERROR,
       "error: %a (\"%s\", %g): %r\n",
-      __FUNCTION__,
+      __func__,
       VariableName,
       VendorGuid,
       Status
@@ -795,33 +810,48 @@ SetSecureBootVariablesToDefault (
   UINT8       *Data;
   UINTN       DataSize;
 
-  DEBUG ((DEBUG_INFO, "%a() Entry\n", __FUNCTION__));
+  DEBUG ((DEBUG_INFO, "%a() Entry\n", __func__));
 
   if (SecureBootPayload == NULL) {
-    DEBUG ((DEBUG_ERROR, "%a - Invalid SecureBoot payload is supplied!\n", __FUNCTION__));
+    DEBUG ((DEBUG_ERROR, "%a - Invalid SecureBoot payload is supplied!\n", __func__));
     return EFI_INVALID_PARAMETER;
   }
 
   //
   // Right off the bat, if SecureBoot is currently enabled, bail.
   if (IsSecureBootEnabled ()) {
-    DEBUG ((DEBUG_ERROR, "%a - Cannot set default keys while SecureBoot is enabled!\n", __FUNCTION__));
+    DEBUG ((DEBUG_ERROR, "%a - Cannot set default keys while SecureBoot is enabled!\n", __func__));
     return EFI_ABORTED;
   }
 
-  DEBUG ((DEBUG_INFO, "%a - Setting up key %s!\n", __FUNCTION__, SecureBootPayload->SecureBootKeyName));
+  DEBUG ((DEBUG_INFO, "%a - Setting up key %s!\n", __func__, SecureBootPayload->SecureBootKeyName));
 
   //
   // Start running down the list, creating variables in our wake.
   // dbx is a good place to start.
   Data     = (UINT8 *)SecureBootPayload->DbxPtr;
   DataSize = SecureBootPayload->DbxSize;
-  Status   = EnrollFromInput (
+  if (DataSize > MINIMUM_VALID_SIGNATURE_LIST) {
+    //
+    // Ensure that that the DataSize meets a minimum allowed size before being set.
+    //
+    DEBUG ((DEBUG_INFO, "%a - Setting Dbx\n", __func__));
+    Status = EnrollFromInput (
                EFI_IMAGE_SECURITY_DATABASE1,
                &gEfiImageSecurityDatabaseGuid,
                DataSize,
                Data
                );
+  } else if ((DataSize == 0) || (DataSize == sizeof (EFI_SIGNATURE_LIST))) {
+    //
+    // The DBX is allowed to be empty by default
+    //
+    DEBUG ((DEBUG_INFO, "%a - Skipping Dbx - DataSize(%u)\n", __func__, DataSize));
+    Status = EFI_SUCCESS;
+  } else {
+    DEBUG ((DEBUG_ERROR, "%a - Invalid Dbx size %u\n", __func__, DataSize));
+    Status = EFI_INVALID_PARAMETER;
+  }
 
   // If that went well, try the db (make sure to pick the right one!).
   if (!EFI_ERROR (Status)) {
@@ -834,10 +864,10 @@ SetSecureBootVariablesToDefault (
                  Data
                  );
     if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_ERROR, "%a - Failed to enroll DB %r!\n", __FUNCTION__, Status));
+      DEBUG ((DEBUG_ERROR, "%a - Failed to enroll DB %r!\n", __func__, Status));
     }
   } else {
-    DEBUG ((DEBUG_ERROR, "%a - Failed to enroll DBX %r!\n", __FUNCTION__, Status));
+    DEBUG ((DEBUG_ERROR, "%a - Failed to enroll DBX %r!\n", __func__, Status));
   }
 
   // Keep it going. Keep it going. dbt if supplied...
@@ -851,7 +881,7 @@ SetSecureBootVariablesToDefault (
                  Data
                  );
     if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_ERROR, "%a - Failed to enroll DBT %r!\n", __FUNCTION__, Status));
+      DEBUG ((DEBUG_ERROR, "%a - Failed to enroll DBT %r!\n", __func__, Status));
     }
   }
 
@@ -866,7 +896,7 @@ SetSecureBootVariablesToDefault (
                  Data
                  );
     if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_ERROR, "%a - Failed to enroll KEK %r!\n", __FUNCTION__, Status));
+      DEBUG ((DEBUG_ERROR, "%a - Failed to enroll KEK %r!\n", __func__, Status));
     }
   }
 
@@ -889,7 +919,7 @@ SetSecureBootVariablesToDefault (
     //
     // Report PK creation errors.
     if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_ERROR, "%a - Failed to update the PK! - %r\n", __FUNCTION__, Status));
+      DEBUG ((DEBUG_ERROR, "%a - Failed to update the PK! - %r\n", __func__, Status));
       Status = EFI_SECURITY_VIOLATION;
     }
   }

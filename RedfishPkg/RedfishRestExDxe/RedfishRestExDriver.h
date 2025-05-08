@@ -3,6 +3,9 @@
 
   Copyright (c) 2019, Intel Corporation. All rights reserved.<BR>
   (C) Copyright 2020 Hewlett Packard Enterprise Development LP<BR>
+  Copyright (c) 2023, Ampere Computing LLC. All rights reserved.<BR>
+  Copyright (C) 2024 Advanced Micro Devices, Inc. All rights reserved.<BR>
+  Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
@@ -21,6 +24,7 @@
 #include <Library/HttpIoLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/NetLib.h>
+#include <Library/RedfishPlatformWantedDeviceLib.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiDriverEntryPoint.h>
@@ -31,6 +35,8 @@
 #include <Protocol/DriverBinding.h>
 #include <Protocol/RestEx.h>
 #include <Protocol/ServiceBinding.h>
+#include <Protocol/HttpCallback.h>
+#include <Protocol/Tls.h>
 
 ///
 /// Protocol instances
@@ -66,6 +72,9 @@ typedef struct _RESTEX_INSTANCE RESTEX_INSTANCE;
 #define RESTEX_INSTANCE_FROM_THIS(a)  \
   CR (a, RESTEX_INSTANCE, RestEx, RESTEX_INSTANCE_SIGNATURE)
 
+#define RESTEX_INSTANCE_FROM_HTTP_CALLBACK(a)  \
+  CR (a, RESTEX_INSTANCE, HttpCallbakFunction, RESTEX_INSTANCE_SIGNATURE)
+
 #define RESTEX_STATE_UNCONFIGED  0
 #define RESTEX_STATE_CONFIGED    1
 
@@ -84,7 +93,7 @@ struct _RESTEX_SERVICE {
   //
   EFI_HANDLE                      HttpChildHandle;
 
-  UINT32                          Id;
+  UINT32                          *Id;
 
   EFI_REST_EX_SERVICE_INFO        RestExServiceInfo;
 };
@@ -93,25 +102,31 @@ struct _RESTEX_SERVICE {
 #define RESTEX_INSTANCE_FLAGS_TCP_ERROR_RETRY  0x00000002
 
 struct _RESTEX_INSTANCE {
-  UINT32                     Signature;
-  LIST_ENTRY                 Link;
+  UINT32                          Signature;
+  LIST_ENTRY                      Link;
 
-  EFI_REST_EX_PROTOCOL       RestEx;
+  EFI_REST_EX_PROTOCOL            RestEx;
 
-  INTN                       State;
-  BOOLEAN                    InDestroy;
+  INTN                            State;
+  BOOLEAN                         InDestroy;
 
-  RESTEX_SERVICE             *Service;
-  EFI_HANDLE                 ChildHandle;
+  RESTEX_SERVICE                  *Service;
+  EFI_HANDLE                      ChildHandle;
 
-  EFI_REST_EX_CONFIG_DATA    ConfigData;
+  EFI_REST_EX_CONFIG_DATA         ConfigData;
 
   //
   // HTTP_IO to access the HTTP service
   //
-  HTTP_IO                    HttpIo;
+  HTTP_IO                         HttpIo;
 
-  UINT32                     Flags;
+  //
+  // EDKII_HTTP_CALLBACK_PROTOCOL that listens to
+  // HttpEventInitSession event.
+  //
+  EDKII_HTTP_CALLBACK_PROTOCOL    HttpCallbakFunction;
+
+  UINT32                          Flags;
 };
 
 typedef struct {

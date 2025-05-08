@@ -9,6 +9,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 **/
 
 #ifndef BASE_RNGLIB_INTERNALS_H_
+#define BASE_RNGLIB_INTERNALS_H_
 
 /**
   Generates a 16-bit random number.
@@ -67,12 +68,5 @@ EFIAPI
 ArchIsRngSupported (
   VOID
   );
-
-#if defined (MDE_CPU_AARCH64)
-
-// RNDR, Random Number
-#define RNDR  S3_3_C2_C4_0
-
-#endif
 
 #endif // BASE_RNGLIB_INTERNALS_H_

@@ -91,7 +91,11 @@ Tpm12GetPtpInterface (
     return PtpInterfaceFifo;
   }
 
-  return PtpInterfaceTis;
+  if (InterfaceId.Bits.InterfaceType == PTP_INTERFACE_IDENTIFIER_INTERFACE_TYPE_TIS) {
+    return PtpInterfaceTis;
+  }
+
+  return PtpInterfaceMax;
 }
 
 /**
@@ -422,7 +426,7 @@ Tpm12TisTpmCommand (
 Exit:
   DEBUG_CODE_BEGIN ();
   DEBUG ((DEBUG_VERBOSE, "Tpm12TisTpmCommand Receive - "));
-  for (Index = 0; Index < TpmOutSize; Index++) {
+  for (Index = 0; Index < *SizeOut; Index++) {
     DEBUG ((DEBUG_VERBOSE, "%02x ", BufferOut[Index]));
   }
 

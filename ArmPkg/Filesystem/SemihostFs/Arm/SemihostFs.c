@@ -574,7 +574,7 @@ ExtendFile (
   }
 
   Remaining = Size;
-  SetMem (WriteBuffer, 0, sizeof (WriteBuffer));
+  ZeroMem (WriteBuffer, sizeof (WriteBuffer));
   while (Remaining > 0) {
     WriteNb   = MIN (Remaining, sizeof (WriteBuffer));
     WriteSize = WriteNb;
@@ -1158,7 +1158,7 @@ FileSetInfo (
 
     Buffer = SystemInfo->VolumeLabel;
 
-    if (StrSize (Buffer) > 0) {
+    if (StrLen (Buffer) > 0) {
       VolumeLabel = AllocateCopyPool (StrSize (Buffer), Buffer);
       if (VolumeLabel != NULL) {
         FreePool (mSemihostFsLabel);
